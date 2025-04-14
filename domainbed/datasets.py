@@ -98,7 +98,7 @@ class SyntheticDataTest(MultipleDomainDataset):
     def __init__(self, root, test_envs, hparams):
         super().__init__()
         self.input_shape = self.INPUT_SHAPE
-        self.num_classes = 1  # Regression problem
+        self.num_classes = 2  # Classificaiton problem
         self.datasets = []
 
         # Parameters from description
