@@ -102,7 +102,7 @@ class SyntheticDataTest(MultipleDomainDataset):
         self.datasets = []
 
         # Parameters from description
-        sigma_e = [1, 2]  # σe=0 = 0.1, σe=1 = 0.2
+        sigma_e = [0.1, 0.2]  # σe=0 = 0.1, σe=1 = 0.2
         sigma_y = 0.25 # was 0.25
         n_samples = 10000
 
@@ -110,7 +110,7 @@ class SyntheticDataTest(MultipleDomainDataset):
             # Generate latent variables according to SCM
             Z_dg = torch.normal(0, sigma_e[e], size=(n_samples, 1))
             y = Z_dg + torch.normal(0, sigma_y, size=(n_samples, 1))
-            Z_spu = y + torch.normal(0, sigma_e[e], size=(n_samples, 1))
+            Z_spu = y + torch.normal(0, 10*sigma_e[e], size=(n_samples, 1))
             
             # Use Z_spu as the input feature
             # Combine Z_spu and Z_dg as input features
