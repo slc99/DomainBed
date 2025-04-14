@@ -115,7 +115,9 @@ class SyntheticDataTest(MultipleDomainDataset):
             # Use Z_spu as the input feature
             # Combine Z_spu and Z_dg as input features
             x = torch.cat([Z_spu, Z_dg], dim=1).float()
-            y = y.float()
+            # Convert continuous y to binary labels (e.g., threshold at 0)
+            y = (y > 0).long().view(-1)  # Binary labels: 0 or 1
+            
             
             self.datasets.append(TensorDataset(x, y))
 
