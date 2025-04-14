@@ -104,7 +104,7 @@ class SyntheticDataTest(MultipleDomainDataset):
         # Parameters from description
         sigma_e = [0.5, 1]  # σe=0 = 0.1, σe=1 = 0.2
         sigma_y = 0.5 # was 0.25
-        n_samples = 5000
+        n_samples = 10000
 
         for e in range(len(self.ENVIRONMENTS)):
             # Generate latent variables according to SCM
