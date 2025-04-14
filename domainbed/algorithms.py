@@ -312,14 +312,25 @@ class AbstractTCRI(ERM):
 
             tcri_penalty += self.tcri(phi_x, psi_x, y, sigma=None)
 
+            # loss from Z_dg and Z_spu
             latent_x = torch.cat([phi_x, psi_x], 1) # total information criterion
-
+            
             anticausal_logits = self.spurious_classifiers[i](latent_x)
             tic_nll += F.cross_entropy(anticausal_logits, y)
 
         nll /= len(minibatches)
         tcri_penalty /= len(minibatches)
         tic_nll /= len(minibatches)
+
+        # Compute norms of classifier weights for phi_x and psi_x
+        classifier = self.spurious_classifiers[i]
+        if isinstance(classifier.classifier, nn.Linear):
+            W = classifier.classifier.weight  # shape: [num_classes, 2 * feature_dim]
+            W_phi = W[:, :phi_x.shape[1]]
+            W_psi = W[:, phi_x.shape[1]:]
+
+            phi_norms.append(W_phi.norm().item())
+            psi_norms.append(W_psi.norm().item())
 
         loss = nll + self.hparams['tcri_alpha'] * tic_nll + \
           penalty_weight * tcri_penalty
@@ -337,9 +348,20 @@ class AbstractTCRI(ERM):
         self.optimizer.step()
 
         self.update_count += 1
-        return {'loss': loss.item(), 'nll': nll.item(),
+        
+        avg_phi_norm = sum(phi_norms) / len(phi_norms)
+        avg_psi_norm = sum(psi_norms) / len(psi_norms)
+        relative_weight_ratio = avg_phi_norm / (avg_phi_norm + avg_psi_norm + 1e-8)
+
+        return {
+            'loss': loss.item(),
+            'nll': nll.item(),
             'tcri_penalty': tcri_penalty.item(),
-            'tic_nll': tic_nll.item()}
+            'tic_nll': tic_nll.item(),
+            'avg_phi_norm': avg_phi_norm,
+            'avg_psi_norm': avg_psi_norm,
+            'phi_vs_psi_ratio': relative_weight_ratio
+        }
 
     def predict(self, x):
         return self.network(x)
