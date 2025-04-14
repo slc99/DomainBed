@@ -320,8 +320,8 @@ class AbstractTCRI(ERM):
 
             # Compute norms of classifier weights for phi_x and psi_x
             classifier = self.spurious_classifiers[i]
-            if isinstance(classifier.classifier, nn.Linear):
-                W = classifier.classifier.weight  # shape: [num_classes, 2 * feature_dim]
+            if isinstance(classifier, nn.Linear):
+                W = classifier.weight
                 W_phi = W[:, :phi_x.shape[1]]
                 W_psi = W[:, phi_x.shape[1]:]
 
