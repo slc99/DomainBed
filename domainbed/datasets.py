@@ -18,6 +18,8 @@ DATASETS = [
     # Debug
     "Debug28",
     "Debug224",
+    # Synthetic data
+    "SyntheticDataTest",
     # Small images
     "ColoredMNIST",
     "RotatedMNIST",
@@ -87,6 +89,34 @@ class Debug224(Debug):
     INPUT_SHAPE = (3, 224, 224)
     ENVIRONMENTS = ['0', '1', '2']
 
+class SyntheticDataTest(MultipleDomainDataset):
+    ENVIRONMENTS = ['e=0', 'e=1']
+    N_STEPS = 5001
+    CHECKPOINT_FREQ = 100
+    INPUT_SHAPE = (1,)  # Single feature Z_spu
+
+    def __init__(self, root, test_envs, hparams):
+        super().__init__()
+        self.input_shape = self.INPUT_SHAPE
+        self.num_classes = 1  # Regression problem
+        self.datasets = []
+
+        # Parameters from description
+        sigma_e = [0.1, 0.2]  # σe=0 = 0.1, σe=1 = 0.2
+        sigma_y = 0.25
+        n_samples = 5000
+
+        for e in range(len(self.ENVIRONMENTS)):
+            # Generate latent variables according to SCM
+            Z_dg = torch.normal(0, sigma_e[e], size=(n_samples, 1))
+            y = Z_dg + torch.normal(0, sigma_y, size=(n_samples, 1))
+            Z_spu = y + torch.normal(0, sigma_e[e], size=(n_samples, 1))
+            
+            # Use Z_spu as the input feature
+            x = Z_spu.float()
+            y = y.float()
+            
+            self.datasets.append(TensorDataset(x, y))
 
 class MultipleEnvironmentMNIST(MultipleDomainDataset):
     def __init__(self, root, environments, dataset_transform, input_shape,
