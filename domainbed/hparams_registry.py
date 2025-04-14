@@ -147,6 +147,12 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('ib_lambda', 1e2, lambda r: 10**r.uniform(-1, 5))
         _hparam('ib_penalty_anneal_iters', 500,
                 lambda r: int(10**r.uniform(0, 4)))
+        
+    elif "TCRI" in algorithm:
+        _hparam('tcri_beta', 1e2, lambda r: 10**r.uniform(-1, 5))
+        _hparam('tcri_beta_anneal_iters', 500,
+            lambda r: int(10**r.uniform(2.5, 5)))
+        _hparam('tcri_alpha', 1., lambda r: 1.)
 
     elif algorithm == "CAD" or algorithm == "CondCAD":
         _hparam('lmbda', 1e-1, lambda r: r.choice([1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]))
