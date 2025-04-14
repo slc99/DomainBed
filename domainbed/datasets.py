@@ -93,7 +93,7 @@ class SyntheticDataTest(MultipleDomainDataset):
     ENVIRONMENTS = ['e=0', 'e=1']
     N_STEPS = 5001
     CHECKPOINT_FREQ = 100
-    INPUT_SHAPE = (1,)  # Single feature Z_spu
+    INPUT_SHAPE = (2,)  # Two features: Z_spu and Z_dg
 
     def __init__(self, root, test_envs, hparams):
         super().__init__()
