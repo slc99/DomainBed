@@ -253,6 +253,11 @@ def _hparams(algorithm, dataset, random_seed):
     elif algorithm in ['DANN', 'CDANN']:
         _hparam('weight_decay_g', 0., lambda r: 10**r.uniform(-6, -2))
 
+    if dataset == "SyntheticDataTest":
+        _hparam('mlp_width', 256, lambda r: int(2 ** r.uniform(6, 10)))
+        _hparam('mlp_depth', 3, lambda r: int(r.choice([3, 4, 5])))
+        _hparam('mlp_dropout', 0., lambda r: r.choice([0., 0.1, 0.5]))
+
     return hparams
 
 
