@@ -321,7 +321,7 @@ class AbstractTCRI(ERM):
         tcri_penalty /= len(minibatches)
         tic_nll /= len(minibatches)
 
-        loss = nll + self.hparams['tcri_alpha']*tic_nll + \
+        loss = nll + self.hparams['tcri_alpha'] * tic_nll + \
           penalty_weight * tcri_penalty
 
         if self.update_count == self.hparams['tcri_beta_anneal_iters']:

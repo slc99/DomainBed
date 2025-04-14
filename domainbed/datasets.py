@@ -91,8 +91,8 @@ class Debug224(Debug):
 
 class SyntheticDataTest(MultipleDomainDataset):
     ENVIRONMENTS = ['e=0', 'e=1']
-    N_STEPS = 5001
-    CHECKPOINT_FREQ = 100
+    N_STEPS = 501
+    CHECKPOINT_FREQ = 10
     INPUT_SHAPE = (1,)  # Single feature Z_spu
 
     def __init__(self, root, test_envs, hparams):
