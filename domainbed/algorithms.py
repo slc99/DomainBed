@@ -25,6 +25,7 @@ from domainbed.lib.misc import (
 ALGORITHMS = [
     'ERM',
     'ERMPlusPlus',
+    'TCRI_HSIC',
     'Fish',
     'IRM',
     'GroupDRO',
@@ -231,6 +232,139 @@ class ERMPlusPlus(Algorithm,ErmPlusPlusMovingAvg):
                      self.optimizer.param_groups[0]['lr'] = (torch.Tensor(schedule[0]).requires_grad_(False))[0]
                      schedule = schedule[1:]
              return schedule
+        
+def centering(K):
+    n = K.shape[0]
+    unit = torch.ones([n, n]).to(K.device)
+    I = torch.eye(n).to(K.device)
+    Q = I - unit/n
+
+    return torch.mm(torch.mm(Q, K), Q)
+
+def rbf(X, sigma=None):
+    GX = torch.mm(X, X.T).to(X.device)
+    KX = torch.diag(GX) - GX + (torch.diag(GX) - GX).T
+    if sigma is None:
+        mdist = torch.median(KX[KX != 0])
+        sigma = torch.nan_to_num(torch.sqrt(mdist), nan=1.)
+        KX *= - 0.5 / sigma / sigma
+        KX = torch.exp(KX)
+    return KX
+
+def HSIC(X, Y, sigma=None):
+    return torch.sum(centering(rbf(X))*centering(rbf(Y)))
+
+class AbstractTCRI(ERM):
+    def __init__(self, input_shape, num_classes, num_domains, hparams):
+        super(AbstractTCRI, self).__init__(input_shape, num_classes, num_domains,
+                                  hparams)
+        self.register_buffer('update_count', torch.tensor([0]))
+
+        self.spurious_featurizer = nn.Sequential(nn.Linear(self.featurizer.n_outputs,
+            self.featurizer.n_outputs))
+        self.domain_general_featurizer = nn.Sequential(nn.Linear(self.featurizer.n_outputs,
+            self.featurizer.n_outputs))
+
+        self.network = nn.Sequential(self.featurizer, self.domain_general_featurizer,
+         self.classifier)
+
+        self.spurious_classifiers = nn.ModuleList()
+        for i in range(num_domains):
+            self.spurious_classifiers.append(networks.Classifier(2*self.featurizer.n_outputs,
+                num_classes,
+                self.hparams['nonlinear_classifier']))
+
+        self.optimizer = torch.optim.Adam(list(self.network.parameters()) + \
+            list(self.spurious_featurizer.parameters())  + \
+            list(self.spurious_classifiers.parameters()),
+            lr = self.hparams['lr'],
+            weight_decay=self.hparams['weight_decay']
+          )
+
+    @staticmethod
+    def tcri(X, Y, Z, sigma=1.):
+        raise NotImplementedError()
+
+    def update(self, minibatches, unlabeled=None):
+        device = "cuda" if minibatches[0][0].is_cuda else "cpu"
+        penalty_weight = (self.hparams['tcri_beta'] if self.update_count
+                          >= self.hparams['tcri_beta_anneal_iters'] else
+                          1.0)
+
+        nll = 0. # causal (domain general nll)
+        tic_nll = 0. # total information criterion (domain specific nll)
+        tcri_penalty = 0.
+
+        all_x = torch.cat([x for x,y in minibatches])
+        all_logits = self.network(all_x)
+
+        all_logits_idx = 0
+
+        for i, (x, y) in enumerate(minibatches):
+            logits = all_logits[all_logits_idx:all_logits_idx + x.shape[0]]
+            all_logits_idx += x.shape[0]
+            nll += F.cross_entropy(logits, y)
+
+            new_x = self.featurizer(x)
+
+            phi_x = self.domain_general_featurizer(new_x) # domain general representation
+            psi_x = self.spurious_featurizer(new_x) # domain specific representation
+
+            tcri_penalty += self.tcri(phi_x, psi_x, y, sigma=None)
+
+            latent_x = torch.cat([phi_x, psi_x], 1) # total information criterion
+
+            anticausal_logits = self.spurious_classifiers[i](latent_x)
+            tic_nll += F.cross_entropy(anticausal_logits, y)
+
+        nll /= len(minibatches)
+        tcri_penalty /= len(minibatches)
+        tic_nll /= len(minibatches)
+
+        loss = nll + self.hparams['tcri_alpha']*tic_nll + \
+          penalty_weight * tcri_penalty
+
+        if self.update_count == self.hparams['tcri_beta_anneal_iters']:
+            # Reset Adam, because it doesn't like the sharp jump in gradient
+            # magnitudes that happens at this step.
+            self.optimizer = torch.optim.Adam(
+                self.network.parameters(),
+                lr=self.hparams["lr"],
+                weight_decay=self.hparams['weight_decay'])
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        self.update_count += 1
+        return {'loss': loss.item(), 'nll': nll.item(),
+            'tcri_penalty': tcri_penalty.item(),
+            'tic_nll': tic_nll.item()}
+
+    def predict(self, x):
+        return self.network(x)
+
+class TCRI_HSIC(AbstractTCRI):
+    def __init__(self, input_shape, num_classes, num_domains, hparams):
+        super(TCRI_HSIC, self).__init__(input_shape, num_classes, num_domains,
+                                  hparams)
+
+    @staticmethod
+    def tcri(X, Y, Z, sigma=None):
+      n = X.shape[0]
+
+      unique_Z = torch.unique(Z)
+      cov = torch.tensor(0.).to(X.device)
+      for i in range(unique_Z.shape[0]):
+        idx = (Z == unique_Z[i]).nonzero(as_tuple=True)[0]
+        if len(idx) <= 1:
+          continue
+        x = X[idx]
+        y = Y[idx]
+
+        cov += HSIC(x, y) 
+      return cov / (unique_Z.shape[0] * n)
+
 
 class URM(ERM):
     """
